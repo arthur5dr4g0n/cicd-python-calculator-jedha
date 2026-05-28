@@ -2,17 +2,14 @@ name: CD pipeline
 
 on:
   workflow_run:
-    workflows: ["CI pipeline"]  # ← Copie-colle EXACTEMENT depuis name: du ci.yml
-    
-types:
+    workflows: ["CI pipeline"]
+    types:
       - completed
 
 jobs:
   build:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    
-    # ↑ Le verrou : tourne UNIQUEMENT si CI est vert
 
     steps:
       - name: Checkout code
@@ -28,7 +25,6 @@ jobs:
         uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1
         with:
           context: .
-          file:    ./Dockerfile
-          push:    true   # ← Sans ça, image buildée mais jamais envoyée
-          
-tags:    ${{ secrets.DOCKER_USERNAME }}/calculator:latest
+          file: ./Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/calculator:latest
