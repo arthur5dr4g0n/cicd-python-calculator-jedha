@@ -1,0 +1,71 @@
+name: CI pipeline   # ← Nom EXACT — cd.yml va s'y référer
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Lancement manuel depuis l'interface GitHub
+
+permissions:
+  contents: read
+  security-events: write  # ← Obligatoire pour uploader les résultats Trivy
+  
+actions: read
+
+jobs:
+
+  # ── JOB 1 : Tests sur 3 versions Python (en parallèle) ──
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.8, 3.9, '3.10']  # '3.10' entre guillemets !
+
+    
+steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 pytest
+
+      - name: Lint with flake8
+        run: |
+          # Erreurs critiques → bloque le build
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          # Avertissements → affiché mais ne bloque pas
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Test with pytest
+        run: |
+          pytest tests/
+
+  # ── JOB 2 : Trivy (tourne en parallèle avec test) ──
+  trivy-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@b3dafe507ffa004210975439a1e6156b8ebb3f50
+        with:
+          scan-type: 'fs'
+          scan-ref:  '.'
+          format:    'sarif'
+          output:    'trivy-results.sarif'
+          severity:  'CRITICAL,HIGH'
+
+      - 
+name: Upload results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
